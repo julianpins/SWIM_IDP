@@ -32,16 +32,16 @@ type Output struct {
 }
 
 type Node struct {
-	id      	NodeID
-	cfg     	Config
-	rng     	Rand
-	members 	map[NodeID]*Member
-	probe_order	[]NodeID
-	next    	int
+	id         NodeID
+	cfg        Config
+	rng        Rand
+	members    map[NodeID]*Member
+	probeOrder []NodeID
+	next       int
 }
 
-func New(id NodeID, cfg Config, rng Rand) *Node         { return nil }
-func (n *Node) Members() []Member                       { return nil }
+func New(id NodeID, cfg Config, rng Rand) *Node { return nil }
+func (n *Node) Members() []Member               { return nil }
 
 func (n *Node) Join(seeds []NodeID) []Output            { return nil }
 func (n *Node) Receive(from NodeID, m Message) []Output { return nil }
