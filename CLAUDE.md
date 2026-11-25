@@ -1,61 +1,79 @@
 # CLAUDE.md
 
-SWIM failure detector (Das, Gupta, Motivala 2002) integrated with SeaweedFS and evaluated against SeaweedFS's heartbeat baseline, using deterministic simulation and real-network benchmarks.
+Implement SWIM (Das, Gupta, Motivala 2002) as a reusable Go protocol, evaluated through deterministic simulation and real-network benchmarks, with the goal of integrating it into SeaweedFS and comparing it against SeaweedFS's heartbeat mechanism.
 
 ## Read first
 
-Before changing protocol behavior, read `docs/protocol/protocol-specification.md`. It covers what to implement, the invariants, required tests and open decisions. `docs/protocol/paper-notes.md` maps paper sections and lists the paper's experimental settings. The paper decides protocol semantics. The spec records project decisions. If both leave something open, raise it before deciding, then record the decision in the spec.
+Before changing protocol behavior, read `docs/protocol/protocol-specification.md`. It defines the implementation, invariants, required tests and open decisions. `docs/protocol/paper-notes.md` maps paper sections and records relevant experimental settings.
+
+The paper defines original SWIM semantics. The specification records project decisions and deviations. If something is unclear or undecided, raise it before choosing and document the decision in the specification.
 
 ## Stack
 
-- Go workspace (`go.work`) with independent modules `swim/` and `simulation/`.
+- Go; start with one module unless separate modules become necessary.
 - SeaweedFS (Go), pinned in `seaweedfs/upstream/`.
-- UDP transport for real deployments, simulated transport for DST.
+- UDP transport for real deployments; simulated transport for DST.
 - YAML experiment configs. Python evaluation (`uv`, pandas, NumPy, matplotlib) with type hints.
 - LaTeX report, PowerPoint presentation, GitHub Actions CI.
 
 ## Layout
 
-- `swim/`: protocol module. `internal/protocol` (probing, suspicion, gossip, incarnation), `internal/membership` (membership table; all state transitions go here), `internal/transport` (UDP, serialization), `pkg/swim` (minimal, stable public API), `test/`.
-- `simulation/`: `engine` (virtual clock, scheduler), `network` (latency, jitter, loss, duplication, reordering, partitions), `faults` (crash, restart, overload), `scenarios` (parameterized, kept apart from engine logic), `runner`.
-- `seaweedfs/`: `upstream/` is never edited in place (changes go into documented patches or a fork). `integration/` holds the adapters from SWIM events to SeaweedFS.
-- `evaluation/`: `configs/` (all experiment parameters), `experiments/` (orchestration only, no protocol logic), `data/raw/` (immutable, large files not committed), `data/processed/`, `analysis/`, `plots/`. Final figures go in `report/figures/`.
-- Also `research/` (literature notes, Markdown with citations), `docs/`, `report/`, `presentation/`, `scripts/`.
+- `protocol/`: reusable SWIM core — probing, suspicion, gossip, incarnation numbers and membership state transitions.
+- `simulation/`: deterministic DST — virtual clock, event scheduler, simulated network, fault injection, scenarios and runner.
+- `runtime/`: real execution environment — UDP transport, real timers, process lifecycle and metrics.
+- `seaweedfs/`: `upstream/` is never edited in place; changes go into documented patches or a fork. `integration/` contains adapters between SWIM and SeaweedFS.
+- `evaluation/`: `configs/` (experiment parameters), `experiments/` (orchestration only), `data/raw/` (immutable, large files not committed), `data/processed/`, `analysis/` and `plots/`. Final figures go in `report/figures/`.
+- `docs/`, `report/`, `presentation/`, `scripts/`.
 
 ## Architecture rules
 
-- `swim/` must not import SeaweedFS. Integration logic belongs in `seaweedfs/integration/`.
-- Inject transport, clock, scheduling and randomness. Protocol code never uses UDP sockets or system time directly.
-- One SWIM implementation runs on both the real network and the simulator. Never write a simulated copy.
-- The baseline is SWIM+Inf.+Susp. with round-robin probing. Extensions (Lifeguard, AZ-aware behavior) are separate, named and configurable. In the baseline, AZ is metadata only.
+- `protocol/` must be independent of the simulator, runtime and SeaweedFS.
+- The same protocol implementation must run in simulation and real deployments. Never create a simulation-only copy.
+- Inject transport, clock, timer scheduling and randomness. Protocol logic must never access system time, real timers, UDP sockets or global randomness directly.
+- Represent protocol deadlines explicitly through timer events. The simulator uses virtual time; the real runtime uses wall-clock time and actual timers.
+- SeaweedFS integration belongs in `seaweedfs/integration/` and must remain isolated from the protocol core.
+- The baseline is SWIM+Inf.+Susp. with round-robin probing. Extensions (e.g. Lifeguard, AZ-aware behavior) must be separate, named and configurable. In the baseline, AZ is metadata only.
 - SWIM membership is advisory. Suspicions and Dead declarations must not trigger storage reassignment, replica removal or authoritative membership changes.
 - Leave SeaweedFS's existing heartbeat intact as the comparison baseline.
-- Use small Go interfaces at component boundaries, idiomatic Go, `gofmt`, explicit errors and `context.Context` for lifecycle. No global mutable state, unneeded concurrency or speculative abstractions.
-- When a public interface changes, check every consuming module and update `docs/` and the affected READMEs.
+- Use small Go interfaces, idiomatic Go, `gofmt`, explicit errors and `context.Context` for lifecycle. Avoid global mutable state, unnecessary concurrency and speculative abstractions.
 
 ## Simulation
 
-Simulation is deterministic: virtual clock, seeded randomness, no real timers and no uncontrolled goroutine scheduling. The same initial state, config, seed and event ordering must produce the same trace.
-
+- Use a virtual clock and discrete-event scheduler. Never use real sleeping, timers or wall-clock time in simulation.
+- Schedule message delivery, protocol timeouts, suspicion expiration, crashes and restarts as events.
+- Process events in deterministic timestamp order with a deterministic tie-breaking rule.
+- Use seeded randomness for all stochastic behavior.
+- Identical initial state, configuration, seed and event ordering must produce identical traces.
+- Support timer cancellation or invalidation without relying on wall-clock behavior.
+- The simulator executes the actual protocol core; simulation infrastructure must not implement protocol behavior.
 ## Testing
 
-- Run `go test ./...` from the module directory.
-- New protocol features need unit tests, plus integration tests where applicable. Test SWIM without SeaweedFS, on both real and simulated transports.
-- Simulation tests verify replay by comparing traces for identical seeds and configs.
+- Run `go test ./...` from the relevant module directory.
+- Test protocol state transitions independently of the simulator.
+- New features need unit tests and, where applicable, simulation and real-network integration tests.
+- Simulation tests verify replayability by comparing traces for identical seeds and configurations.
 - Keep fast unit tests separate from long integration tests and experiments.
+- State assumptions behind safety and liveness properties.
 - Never claim tests passed without running them.
 
 ## Experiments and data
 
-- Experimental parameters belong in `evaluation/configs/`. Never hardcode them in code or analysis scripts.
+- Experimental parameters belong in `evaluation/configs/`; never hardcode them in protocol or analysis code.
 - Use one result schema for heartbeat, SWIM and its variants. Every result records protocol version, Git commit, config, seed, cluster size and network conditions.
 - Measure suspicion time, failure-declaration time and membership-convergence time separately.
 - Run multiple seeds per configuration. Keep simulated and real-network results separate.
-- Never edit raw results, fabricate data or silently drop runs. Document failed runs, missing data and limitations. Derived data, plots and tables must be reproducible from raw data plus scripts.
+- Never edit raw results, fabricate data or silently drop runs. Document failed runs, missing data and limitations. Derived data, plots and tables must be reproducible from raw data and scripts.
 
 ## Working style
 
-- Read the module's README and the relevant docs first, and work in the component that owns the functionality.
-- Make small, incremental changes with tests alongside them. No large refactorings, and never edit generated files or build artifacts.
-- Before substantial architectural changes, lay out the alternatives and trade-offs. Ask when a requirement is ambiguous or conflicts with an existing decision.
-- Document deviations, assumptions and implementation decisions in the relevant doc.
+- Read the relevant documentation and README before changing a component.
+- Work in the component that owns the functionality.
+- Make small, incremental changes with tests alongside them. Avoid large refactorings; never edit generated files or build artifacts.
+- Before substantial architectural changes, explain alternatives and trade-offs. Ask when requirements are ambiguous or conflict with existing decisions.
+- Document deviations, assumptions and implementation decisions in the relevant documentation.
+
+## Reference implementation
+
+My Viewstamped Replication implementation: `https://github.com/julianpins/Deterministic-Simulation-Testing-for-VSR/blob/main/main.c`
+
+Use it as a reference for codestyle / conciseness, deterministic simulation, event scheduling, reproducibility, traces and invariant-based testing. Do not copy its architecture blindly; SWIM must also support a real runtime and SeaweedFS integration.

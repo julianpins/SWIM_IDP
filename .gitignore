@@ -1,0 +1,44 @@
+# Go
+/bin/
+*.exe
+*.test
+*.out            # also covers coverage.out
+*.prof
+
+# Python (keep uv.lock committed)
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Experiment data: raw outputs are big and immutable, processed data is regenerated
+evaluation/data/raw/*
+evaluation/data/processed/*
+!evaluation/data/**/.gitkeep
+!evaluation/data/**/README.md
+
+# LaTeX build files (scoped so experiment *.log files aren't hidden)
+report/**/*.aux
+report/**/*.bbl
+report/**/*.blg
+report/**/*.fdb_latexmk
+report/**/*.fls
+report/**/*.log
+report/**/*.toc
+report/**/*.synctex.gz
+report/build/
+
+# Office lock files
+~$*
+
+# Editors, OS, local secrets
+.vscode/
+.idea/
+*.swp
+.DS_Store
+.env
+.claude/settings.local.json
+percue
