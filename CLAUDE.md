@@ -29,7 +29,7 @@ The paper defines original SWIM semantics. The specification records project dec
 
 - `protocol/` must be independent of the simulator, runtime and SeaweedFS.
 - The same protocol implementation must run in simulation and real deployments. Never create a simulation-only copy.
-- Inject transport, clock, timer scheduling and randomness. Protocol logic must never access system time, real timers, UDP sockets or global randomness directly.
+- The protocol is a pure state machine: the environment feeds it messages and expired timers, and it returns sends and timer requests as outputs. Randomness is injected (`protocol.Rand`). Protocol logic must never access system time, real timers, UDP sockets or global randomness directly.
 - Represent protocol deadlines explicitly through timer events. The simulator uses virtual time; the real runtime uses wall-clock time and actual timers.
 - SeaweedFS integration belongs in `seaweedfs/integration/` and must remain isolated from the protocol core.
 - The baseline is SWIM+Inf.+Susp. with round-robin probing. Extensions (e.g. Lifeguard, AZ-aware behavior) must be separate, named and configurable. In the baseline, AZ is metadata only.
@@ -55,6 +55,24 @@ The paper defines original SWIM semantics. The specification records project dec
 - Keep fast unit tests separate from long integration tests and experiments.
 - State assumptions behind safety and liveness properties.
 - Never claim tests passed without running them.
+
+## Coding Style
+
+Follow [TigerStyle](https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md) when writing Go code.
+
+Key principles:
+- Prefer explicit, readable code over clever abstractions or excessive conciseness.
+- Use descriptive names and make units explicit (e.g. `timeout_ms`, `latency_ns`).
+- Keep functions small, focused and easy to reason about.
+- Make assumptions, invariants and preconditions explicit. Validate inputs at component boundaries.
+- Avoid hidden control flow, implicit state changes and unnecessary mutable state.
+- Handle errors explicitly; never silently ignore unexpected failures.
+- Use fixed limits and bounded resource usage where practical, especially for queues, buffers and message sizes.
+- Prefer deterministic behavior and explicit dependencies over implicit global state.
+- Add assertions and tests for important invariants and edge cases.
+- Document non-obvious design decisions and explain why, not just what.
+
+Apply these principles idiomatically in Go. Do not mechanically copy TigerBeetle's Zig-specific conventions or introduce unnecessary complexity.
 
 ## Experiments and data
 
