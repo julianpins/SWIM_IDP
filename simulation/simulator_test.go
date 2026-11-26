@@ -112,3 +112,30 @@ func TestPartitionAndHealReachNetwork(t *testing.T) {
 		t.Error("a -> c blocked after heal")
 	}
 }
+
+// without faults every node probes each period and gets acked (the last may be in flight).
+func TestDirectProbingWithoutFaults(t *testing.T) {
+	s := testSim(t, 1)
+	if err := s.Run(10 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	pings := map[protocol.NodeID]int{}
+	acks := map[protocol.NodeID]int{}
+	for _, entry := range s.Trace() {
+		e := entry.Event
+		if e.Kind != Deliver {
+			continue
+		}
+		switch e.Msg.Kind {
+		case protocol.Ping:
+			pings[e.From]++
+		case protocol.Ack:
+			acks[e.Node]++
+		}
+	}
+	for _, id := range testSimConfig().Nodes {
+		if pings[id] < 9 || acks[id] < pings[id]-1 {
+			t.Errorf("%s: %d pings, %d acks; want >= 9 pings, all but the last acked", id, pings[id], acks[id])
+		}
+	}
+}
