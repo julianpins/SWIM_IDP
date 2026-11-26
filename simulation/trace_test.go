@@ -23,7 +23,9 @@ func testTrace() Trace {
 }
 
 func TestHashIdenticalTraces(t *testing.T) {
-	if testTrace().Hash() != testTrace().Hash() {
+	t1 := testTrace()
+	t2 := testTrace()
+	if t1.Hash() != t2.Hash() {
 		t.Error("identical traces hash differently")
 	}
 }

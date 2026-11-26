@@ -15,6 +15,7 @@ const (
 	Deliver EventKind = iota
 	Expire
 	Inject
+	Boot 
 )
 
 // no pointers, funcs or channels: Trace.Hash would differ between runs.
