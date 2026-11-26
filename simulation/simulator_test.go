@@ -139,3 +139,23 @@ func TestDirectProbingWithoutFaults(t *testing.T) {
 		}
 	}
 }
+
+// a and c cannot reach each other; a's probes of c succeed through b.
+func TestIndirectProbeAroundBrokenLink(t *testing.T) {
+	s := testSim(t, 1)
+	s.net.blocked[link{"a", "c"}] = true
+	s.net.blocked[link{"c", "a"}] = true
+	if err := s.Run(10 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	forwarded := 0
+	for _, entry := range s.Trace() {
+		e := entry.Event
+		if e.Kind == Deliver && e.Node == "a" && e.From == "b" && e.Msg.Kind == protocol.Ack && e.Msg.Target == "c" {
+			forwarded++
+		}
+	}
+	if forwarded == 0 {
+		t.Error("no Ack about c forwarded to a by b")
+	}
+}
