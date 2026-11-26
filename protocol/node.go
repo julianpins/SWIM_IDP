@@ -29,6 +29,7 @@ type OutputKind uint8
 const (
 	Send OutputKind = iota
 	SetTimer
+	Changed // a member's entry changed in this node's view
 )
 
 // environment effect.
@@ -40,6 +41,8 @@ type Output struct {
 	// Set Timer
 	After time.Duration
 	Timer Timer
+	// Changed
+	Change Change
 }
 
 type Node struct {

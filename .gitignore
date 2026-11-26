@@ -2,7 +2,8 @@
 /bin/
 *.exe
 *.test
-*.out            # also covers coverage.out
+# *.out also covers coverage.out
+*.out
 *.prof
 
 # Python (keep uv.lock committed)
@@ -41,4 +42,7 @@ report/build/
 .DS_Store
 .env
 .claude/settings.local.json
-percue
+
+# Simulator traces and animations (regenerate with cmd/swimsim and scripts/trace_animation.py)
+/trace.json
+/trace.html

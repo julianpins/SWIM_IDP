@@ -104,6 +104,11 @@ AZ is metadata only. Expose it to the simulator and the evaluation code. The bas
   - **Order.** The least-transmitted updates go first, with ties broken by member ID.
   - **Buffer.** It holds at most one update per member. A newer update replaces the older one and resets its count. Dead updates are disseminated like any other.
   - **Refutation.** Suspect about self at the current incarnation or higher sets the incarnation to that value + 1 and enqueues Alive. Alive about self and stale suspicions are ignored. Dead about self is ignored until join exists; the paper requires a rejoin.
+- **Observability.**
+  - Every change to a member's entry in a node's view is emitted as a `Changed` output: member, previous and new state, incarnation, and whether the member was known before. It carries no timestamp; the environment adds one.
+  - The initial member list emits nothing.
+  - A refutation emits nothing at the refuting node. It becomes visible as Suspect → Alive in the views of the nodes that suspected it, which is all the detection metrics need.
+  - The simulator stores the changes with the trace entry of the event that caused them, so they are part of the trace hash.
 - **Ping from an unknown sender.** It is answered, but the sender is not added to the view. Members are added only through updates; the paper learns about members only through join announcements and dissemination.
 - **Coordinator.** Rejoins contact the first member of the configured node list. If that member is crashed, the first live one is used instead (our addition; the paper uses a single static coordinator).
 

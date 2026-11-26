@@ -241,3 +241,35 @@ func TestFalseSuspicionRefuted(t *testing.T) {
 		}
 	}
 }
+
+// every live node records c as Alive -> Suspect -> Dead, in that order and in time order.
+func TestCrashChangesInTrace(t *testing.T) {
+	s := testSim(t, 1)
+	if err := s.Schedule(2*time.Second, Fault{Kind: Crash, Node: "c"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Run(15 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[protocol.NodeID][]protocol.State{}
+	last := map[protocol.NodeID]time.Duration{}
+	for _, entry := range s.Trace() {
+		for _, c := range entry.Changes {
+			if c.Member != "c" {
+				t.Errorf("%s: unexpected change %+v", entry.Event.Node, c)
+				continue
+			}
+			node := entry.Event.Node
+			if entry.Event.At < 2*time.Second || entry.Event.At < last[node] {
+				t.Errorf("%s: change at %v out of order", node, entry.Event.At)
+			}
+			last[node] = entry.Event.At
+			seen[node] = append(seen[node], c.To)
+		}
+	}
+	for _, id := range []protocol.NodeID{"a", "b"} {
+		if got := seen[id]; len(got) != 2 || got[0] != protocol.Suspect || got[1] != protocol.Dead {
+			t.Errorf("%s recorded %v, want [Suspect Dead]", id, got)
+		}
+	}
+}

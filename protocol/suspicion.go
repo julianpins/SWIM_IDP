@@ -1,16 +1,20 @@
 package protocol
 
-// applies u; disseminates every change and starts a suspicion timer on a new Suspect.
+// applies u; reports and disseminates every change and starts a suspicion timer on a new Suspect.
 func (n *Node) update(u Update) []Output {
-	if _, changed := n.applyUpdate(u); !changed {
+	_, known := n.members[u.Member]
+	previous, changed := n.applyUpdate(u)
+	if !changed {
 		return nil
 	}
 	n.enqueue(u)
+	out := []Output{{Kind: Changed, Change: Change{Member: u.Member, Known: known,
+		From: previous, To: u.State, Incarnation: u.Incarnation}}}
 	if u.State != Suspect {
-		return nil
+		return out
 	}
-	return []Output{{Kind: SetTimer, After: n.cfg.SuspicionTimeout,
-		Timer: Timer{Kind: SuspicionTimeout, Member: u.Member, Incarnation: u.Incarnation}}}
+	return append(out, Output{Kind: SetTimer, After: n.cfg.SuspicionTimeout,
+		Timer: Timer{Kind: SuspicionTimeout, Member: u.Member, Incarnation: u.Incarnation}})
 }
 
 // unacked probe (direct and indirect) suspects the target, then the next period starts.

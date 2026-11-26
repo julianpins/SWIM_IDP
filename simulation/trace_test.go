@@ -2,7 +2,9 @@ package simulation
 
 import (
 	"crypto/sha256"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/julianpins/SWIM_IDP/protocol"
 )
@@ -66,5 +68,41 @@ func TestHashNodeIDWithNewline(t *testing.T) {
 	two := Trace{{Event: Event{Node: "a"}}, {Event: Event{Node: "b"}}}
 	if one.Hash() == two.Hash() {
 		t.Error("newline in node ID collides with two entries")
+	}
+}
+
+func formatTrace() Trace {
+	return Trace{
+		{Event: Event{At: 1500 * time.Millisecond, Kind: Deliver, Node: "n2", From: "n1", Msg: protocol.Message{
+			Kind: protocol.Ping, Probe: 3, Updates: []protocol.Update{{Member: "n3", State: protocol.Suspect}},
+		}}, Changes: []protocol.Change{{Member: "n3", Known: true, From: protocol.Alive, To: protocol.Suspect}}},
+		{Event: Event{At: 2 * time.Second, Kind: Inject, Fault: Fault{Kind: Crash, Node: "n3"}}},
+		{Event: Event{At: 3 * time.Second, Kind: Expire, Node: "n1",
+			Timer: protocol.Timer{Kind: protocol.ProbeTimeout, Probe: 4, Member: "n3"}}},
+	}
+}
+
+func TestFormat(t *testing.T) {
+	var b strings.Builder
+	if err := formatTrace().Format(&b, false); err != nil {
+		t.Fatal(err)
+	}
+	want := "" +
+		"    1.500000s  n2    Deliver  Ping#3 [n3 Suspect/0] from n1\n" +
+		"    1.500000s  n2      n3: Alive -> Suspect (inc 0)\n" +
+		"    2.000000s  -     Inject   Crash n3\n" +
+		"    3.000000s  n1    Expire   ProbeTimeout#4 n3\n"
+	if b.String() != want {
+		t.Errorf("got\n%s\nwant\n%s", b.String(), want)
+	}
+}
+
+func TestFormatChangesOnly(t *testing.T) {
+	var b strings.Builder
+	if err := formatTrace().Format(&b, true); err != nil {
+		t.Fatal(err)
+	}
+	if want := "    1.500000s  n2      n3: Alive -> Suspect (inc 0)\n"; b.String() != want {
+		t.Errorf("got %q, want %q", b.String(), want)
 	}
 }

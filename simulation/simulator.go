@@ -122,18 +122,22 @@ func (s *Simulator) Now() time.Duration { return s.sched.now }
 
 func (s *Simulator) Trace() Trace { return s.trace }
 
-// turns a node's outputs into events, in order.
+// turns a node's outputs into events, in order; changes go to the current trace entry.
 func (s *Simulator) apply(i int, out []protocol.Output) error {
 	from := s.nodes[i].id
+	entry := &s.trace[len(s.trace)-1]
 	for _, o := range out {
 		var e Event
 		switch o.Kind {
+		case protocol.Changed:
+			entry.Changes = append(entry.Changes, o.Change)
+			continue
 		case protocol.Send:
 			delay, ok := s.net.route(from, o.To)
 			if !ok {
 				continue
 			}
-			e = Event{At: s.sched.now + delay, Kind: Deliver, Node: o.To, From: from, Msg: o.Msg}
+			e = Event{At: s.sched.now + delay, Kind: Deliver, Node: o.To, From: from, Msg: o.Msg, Sent: s.sched.now}
 		case protocol.SetTimer:
 			e = Event{At: s.sched.now + o.After, Kind: Expire, Node: from, Timer: o.Timer}
 		}

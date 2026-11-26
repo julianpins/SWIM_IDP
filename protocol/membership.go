@@ -14,6 +14,15 @@ type Member struct {
 	Incarnation uint64
 }
 
+// a change in this node's view of Member; no timestamp, the environment adds it.
+type Change struct {
+	Member      NodeID
+	Known       bool // false: Member was not in the table before; From is meaningless
+	From        State
+	To          State
+	Incarnation uint64
+}
+
 // paper Section 4.2: whether update replaces the current entry.
 func overrides(u Update, m Member) bool {
 	switch m.State {

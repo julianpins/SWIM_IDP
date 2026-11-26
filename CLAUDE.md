@@ -20,6 +20,7 @@ The paper defines original SWIM semantics. The specification records project dec
 
 - `protocol/`: reusable SWIM core — probing, suspicion, gossip, incarnation numbers and membership state transitions.
 - `simulation/`: deterministic DST — virtual clock, event scheduler, simulated network, fault injection, scenarios and runner.
+- `cmd/`: executables (`swimsim` simulator CLI, later the runtime node); wiring only.
 - `runtime/`: real execution environment — UDP transport, real timers, process lifecycle and metrics.
 - `seaweedfs/`: `upstream/` is never edited in place; changes go into documented patches or a fork. `integration/` contains adapters between SWIM and SeaweedFS.
 - `evaluation/`: `configs/` (experiment parameters), `experiments/` (orchestration only), `data/raw/` (immutable, large files not committed), `data/processed/`, `analysis/` and `plots/`. Final figures go in `report/figures/`.

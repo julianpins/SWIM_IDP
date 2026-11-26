@@ -74,8 +74,10 @@ func TestSuspicionTimeoutDeclaresDead(t *testing.T) {
 	n := probeNode(t, 1)
 	target, _ := pingIn(t, n.Start())
 	timer := timers(n.Fire(Timer{Kind: PeriodEnd}), SuspicionTimeout)[0]
-	if out := n.Fire(timer); out != nil {
-		t.Errorf("Dead set timers: %+v", out)
+	for _, o := range n.Fire(timer) {
+		if o.Kind == SetTimer {
+			t.Errorf("Dead set a timer: %+v", o)
+		}
 	}
 	if m := n.members[target]; m.State != Dead || m.Incarnation != 0 {
 		t.Errorf("target %+v, want Dead 0", m)

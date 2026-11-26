@@ -27,6 +27,7 @@ type Event struct {
 	Msg   protocol.Message
 	Timer protocol.Timer
 	Fault Fault
+	Sent  time.Duration // Deliver: when the message was sent
 }
 
 // queue sorted by At descending: next event is last, equal At popped FIFO.
