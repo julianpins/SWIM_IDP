@@ -5,7 +5,8 @@ type TimerKind uint8
 const (
 	ProbeTimeout TimerKind = iota
 	SuspicionTimeout
-	PeriodEnd // end of protocol period -> next probe
+	PeriodEnd
+	RelayTimeout
 )
 
 type Timer struct {

@@ -88,6 +88,13 @@ AZ is metadata only. Expose it to the simulator and the evaluation code. The bas
 - **Restart identity (deviation: paper is silent).** The paper initializes incarnation to 0 on join and requires a confirmed member to drop out and rejoin (Section 4.2), but says nothing about restarts or identifiers. A restarted process therefore joins as a new member with a new ID (`<id>#<restart count>`) and incarnation 0. Reusing the old ID would let a still-circulating Confirm, which overrides Alive at any incarnation, remove the new process.
 - **Updates about unknown members (paper is silent).** Any update about an unknown member is stored with its state and incarnation. Suspect or Confirm can arrive before a joiner's Alive because of reordering; storing keeps that information, and a stored Dead blocks a later stale Alive.
 - **Dead entries are kept (tombstones).** A Dead member leaves the probe order but stays in the membership table, so a late Alive at an old incarnation cannot re-add it. The paper keeps recently failed members in a separate list (Section 4.1); expiring tombstones is left for later. The table grows by one entry per ID ever seen, which is bounded by nodes plus restarts.
+- **Probe IDs.** One increasing counter per node, starting at 1 (0 means no probe open). An ACK completes the open probe only if both its probe ID and its sender match. It still counts after `ProbeTimeout`, until the period ends.
+- **Indirect probing (paper is silent on these details).**
+  - Intermediaries are up to `IndirectProbeCount` random non-Dead members other than the node itself and the target. If fewer are available, all of them are used.
+  - An intermediary pings the target with its own probe ID from the same counter, so relayed Pings never collide with its own probe. It forwards the target's Ack to the requester as `Ack{requester's probe ID, Target: target}`.
+  - The requester accepts a forwarded Ack only from one of the intermediaries it chose for that probe.
+  - An intermediary drops its relay entry after one `ProtocolPeriod` (`RelayTimeout`). By then the requester's period has ended, and a later Ack would be useless. This keeps the relay table bounded.
+- **Ping from an unknown sender.** It is answered, but the sender is not added to the view. Members are added only through updates; the paper learns about members only through join announcements and dissemination.
 - **Coordinator.** Rejoins contact the first member of the configured node list. If that member is crashed, the first live one is used instead (our addition; the paper uses a single static coordinator).
 
 ## Open decisions

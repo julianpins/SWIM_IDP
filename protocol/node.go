@@ -3,6 +3,8 @@ package protocol
 import (
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 )
 
@@ -29,10 +31,12 @@ const (
 // environment effect.
 type Output struct {
 	Kind  OutputKind
-	To    NodeID        // Send
-	Msg   Message       // Send
-	After time.Duration // SetTimer
-	Timer Timer         // SetTimer
+	// Send
+	To    NodeID
+	Msg   Message
+	// Set Timer
+	After time.Duration
+	Timer Timer
 }
 
 type Node struct {
@@ -42,6 +46,9 @@ type Node struct {
 	members    map[NodeID]*Member
 	probeOrder []NodeID
 	next       int
+	probe      probe
+	probeID    uint64
+	relays     map[uint64]relay
 }
 
 func (c Config) Validate() error {
@@ -71,7 +78,7 @@ func New(id NodeID, cfg Config, rng Rand, members []NodeID) (*Node, error) {
 	if rng == nil {
 		return nil, errors.New("protocol: rng is nil")
 	}
-	n := &Node{id: id, cfg: cfg, rng: rng, members: map[NodeID]*Member{id: {ID: id}}}
+	n := &Node{id: id, cfg: cfg, rng: rng, members: map[NodeID]*Member{id: {ID: id}}, relays: map[uint64]relay{}}
 	for _, m := range members {
 		if m == "" {
 			return nil, errors.New("protocol: empty member ID")
@@ -84,13 +91,47 @@ func New(id NodeID, cfg Config, rng Rand, members []NodeID) (*Node, error) {
 	return n, nil
 }
 
-func (n *Node) Members() []Member { return nil }
 
-// starts probing with the initial view.
-func (n *Node) Start() []Output { return nil }
+func (n *Node) Members() []Member {
+	out := make([]Member, 0, len(n.members))
+	for _, m := range n.members {
+		out = append(out, *m)
+	}
+	slices.SortFunc(out, func(a, b Member) int { return strings.Compare(string(a.ID), string(b.ID)) })
+	return out
+}
 
-// joins an existing group through contact, then starts probing.
+// start probing with the initial view.
+func (n *Node) Start() []Output { return n.startProbing() }
+
+// join existing group through contact.
 func (n *Node) Join(contact NodeID) []Output { return nil }
 
-func (n *Node) Receive(from NodeID, m Message) []Output { return nil }
-func (n *Node) Fire(t Timer) []Output                   { return nil }
+func (n *Node) Receive(from NodeID, m Message) []Output {
+	assert(from != "" && from != n.id, "Receive: invalid sender")
+	switch m.Kind {
+	case Ping:
+		return n.onPing(from, m)
+	case Ack:
+		return n.onAck(from, m)
+	case PingReq:
+		return n.onPingReq(from, m)
+	}
+	assert(false, "Receive: unknown message kind")
+	return nil
+}
+
+func (n *Node) Fire(t Timer) []Output {
+	switch t.Kind {
+	case PeriodEnd:
+		return n.probeNext()
+	case ProbeTimeout:
+		return n.onProbeTimeout(t)
+	case RelayTimeout:
+		return n.onRelayTimeout(t)
+	case SuspicionTimeout:
+		return nil // suspicion
+	}
+	assert(false, "Fire: unknown timer kind")
+	return nil
+}
