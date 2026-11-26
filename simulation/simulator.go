@@ -13,7 +13,7 @@ type Config struct {
 
 type Simulator struct {
 	sched   scheduler
-	net     network
+	net     *network
 	ids     []protocol.NodeID
 	nodes   map[protocol.NodeID]*protocol.Node
 	crashed map[protocol.NodeID]bool

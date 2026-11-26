@@ -1,11 +1,24 @@
 package simulation
 
-// Entry records one processed event. Event already carries At and Node.
+import (
+	"crypto/sha256"
+	"fmt"
+)
+
+// one processed event; Event already carries At and Node.
 type Entry struct {
 	Event Event
 }
 
 type Trace []Entry
 
-// for comparing runs
-func (t Trace) Hash() [32]byte { return [32]byte{} }
+// sha256 over the Go-syntax form of every entry.
+func (t Trace) Hash() [32]byte {
+	h := sha256.New()
+	for _, e := range t {
+		fmt.Fprintf(h, "%#v\n", e)
+	}
+	var sum [32]byte
+	copy(sum[:], h.Sum(nil))
+	return sum
+}
