@@ -19,6 +19,9 @@ type Config struct {
 	ProbeTimeout       time.Duration
 	SuspicionTimeout   time.Duration
 	IndirectProbeCount int
+	// λ: an update is sent ⌈λ·ln(n)⌉ times, n = non-Dead members.
+	RetransmitMultiplier int
+	MaxUpdatesPerMessage int
 }
 
 type OutputKind uint8
@@ -49,6 +52,7 @@ type Node struct {
 	probe      probe
 	probeID    uint64
 	relays     map[uint64]relay
+	gossip     []broadcast
 }
 
 func (c Config) Validate() error {
@@ -63,6 +67,12 @@ func (c Config) Validate() error {
 	}
 	if c.IndirectProbeCount < 0 {
 		return errors.New("protocol: IndirectProbeCount must not be negative")
+	}
+	if c.RetransmitMultiplier <= 0 {
+		return errors.New("protocol: RetransmitMultiplier must be positive")
+	}
+	if c.MaxUpdatesPerMessage <= 0 {
+		return errors.New("protocol: MaxUpdatesPerMessage must be positive")
 	}
 	return nil
 }
@@ -102,36 +112,40 @@ func (n *Node) Members() []Member {
 }
 
 // start probing with the initial view.
-func (n *Node) Start() []Output { return n.startProbing() }
+func (n *Node) Start() []Output { return n.piggyback(n.startProbing()) }
 
 // join existing group through contact.
 func (n *Node) Join(contact NodeID) []Output { return nil }
 
 func (n *Node) Receive(from NodeID, m Message) []Output {
 	assert(from != "" && from != n.id, "Receive: invalid sender")
+	out := n.receiveUpdates(m.Updates)
 	switch m.Kind {
 	case Ping:
-		return n.onPing(from, m)
+		out = append(out, n.onPing(from, m)...)
 	case Ack:
-		return n.onAck(from, m)
+		out = append(out, n.onAck(from, m)...)
 	case PingReq:
-		return n.onPingReq(from, m)
+		out = append(out, n.onPingReq(from, m)...)
+	default:
+		assert(false, "Receive: unknown message kind")
 	}
-	assert(false, "Receive: unknown message kind")
-	return nil
+	return n.piggyback(out)
 }
 
 func (n *Node) Fire(t Timer) []Output {
+	var out []Output
 	switch t.Kind {
 	case PeriodEnd:
-		return n.probeNext()
+		out = n.onPeriodEnd()
 	case ProbeTimeout:
-		return n.onProbeTimeout(t)
+		out = n.onProbeTimeout(t)
 	case RelayTimeout:
-		return n.onRelayTimeout(t)
+		out = n.onRelayTimeout(t)
 	case SuspicionTimeout:
-		return nil // suspicion
+		out = n.onSuspicionTimeout(t)
+	default:
+		assert(false, "Fire: unknown timer kind")
 	}
-	assert(false, "Fire: unknown timer kind")
-	return nil
+	return n.piggyback(out)
 }

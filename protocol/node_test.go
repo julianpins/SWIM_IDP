@@ -8,10 +8,12 @@ import (
 
 func validConfig() Config {
 	return Config{
-		ProtocolPeriod:     time.Second,
-		ProbeTimeout:       200 * time.Millisecond,
-		SuspicionTimeout:   5 * time.Second,
-		IndirectProbeCount: 3,
+		ProtocolPeriod:       time.Second,
+		ProbeTimeout:         200 * time.Millisecond,
+		SuspicionTimeout:     5 * time.Second,
+		IndirectProbeCount:   3,
+		RetransmitMultiplier: 3,
+		MaxUpdatesPerMessage: 8,
 	}
 }
 
@@ -25,6 +27,8 @@ func TestConfigValidate(t *testing.T) {
 		"timeout >= period": func(c *Config) { c.ProbeTimeout = c.ProtocolPeriod },
 		"zero suspicion":    func(c *Config) { c.SuspicionTimeout = 0 },
 		"negative indirect": func(c *Config) { c.IndirectProbeCount = -1 },
+		"zero multiplier":   func(c *Config) { c.RetransmitMultiplier = 0 },
+		"zero max updates":  func(c *Config) { c.MaxUpdatesPerMessage = 0 },
 	}
 	for name, mutate := range invalid {
 		c := validConfig()

@@ -10,10 +10,12 @@ import (
 func testSimConfig() Config {
 	return Config{
 		Protocol: protocol.Config{
-			ProtocolPeriod:     time.Second,
-			ProbeTimeout:       200 * time.Millisecond,
-			SuspicionTimeout:   5 * time.Second,
-			IndirectProbeCount: 3,
+			ProtocolPeriod:       time.Second,
+			ProbeTimeout:         200 * time.Millisecond,
+			SuspicionTimeout:     5 * time.Second,
+			IndirectProbeCount:   3,
+			RetransmitMultiplier: 3,
+			MaxUpdatesPerMessage: 8,
 		},
 		Network:       NetworkConfig{LatencyMin: time.Millisecond, LatencyMax: 10 * time.Millisecond},
 		Nodes:         []protocol.NodeID{"a", "b", "c"},
@@ -180,6 +182,61 @@ func TestCrashedNodeDeclaredDead(t *testing.T) {
 			}
 			if m.State != want {
 				t.Errorf("%s sees %s as %d, want %d", sn.id, m.ID, m.State, want)
+			}
+		}
+	}
+}
+
+// 5 nodes, c crashes: gossip spreads Dead to every live node, even those that never probed c.
+func TestCrashDetectionSpreadsByGossip(t *testing.T) {
+	config := testSimConfig()
+	config.Nodes = []protocol.NodeID{"a", "b", "c", "d", "e"}
+	config.QueueCapacity = 256
+	s, err := New(config, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Schedule(2*time.Second, Fault{Kind: Crash, Node: "c"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Run(20 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	for _, sn := range s.nodes {
+		if sn.id == "c" {
+			continue
+		}
+		for _, m := range sn.node.Members() {
+			want := protocol.Alive
+			if m.ID == "c" {
+				want = protocol.Dead
+			}
+			if m.State != want {
+				t.Errorf("%s sees %s as %d, want %d", sn.id, m.ID, m.State, want)
+			}
+		}
+	}
+}
+
+// a cannot reach c and has no indirect probes: a suspects c, c refutes, nobody declares c Dead.
+func TestFalseSuspicionRefuted(t *testing.T) {
+	config := testSimConfig()
+	config.Protocol.IndirectProbeCount = 0
+	s, err := New(config, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.net.blocked[link{"a", "c"}] = true
+	if err := s.Run(30 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	for _, sn := range s.nodes {
+		for _, m := range sn.node.Members() {
+			if m.State == protocol.Dead {
+				t.Errorf("%s declared %s Dead", sn.id, m.ID)
+			}
+			if sn.id == "c" && m.ID == "c" && m.Incarnation == 0 {
+				t.Error("c never refuted")
 			}
 		}
 	}

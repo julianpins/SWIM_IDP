@@ -94,6 +94,16 @@ AZ is metadata only. Expose it to the simulator and the evaluation code. The bas
   - An intermediary pings the target with its own probe ID from the same counter, so relayed Pings never collide with its own probe. It forwards the target's Ack to the requester as `Ack{requester's probe ID, Target: target}`.
   - The requester accepts a forwarded Ack only from one of the intermediaries it chose for that probe.
   - An intermediary drops its relay entry after one `ProtocolPeriod` (`RelayTimeout`). By then the requester's period has ended, and a later Ack would be useless. This keeps the relay table bounded.
+- **Suspicion.**
+  - A target is suspected at `PeriodEnd` if neither a direct nor a forwarded Ack arrived (paper step 3).
+  - Every change to Suspect starts a timer of the fixed `Config.SuspicionTimeout`. The formula is still open.
+  - The timer carries the suspected incarnation, and it declares Dead only if the member is still Suspect at that incarnation. A stale timer from before a refutation can therefore never kill a re-suspected member.
+- **Gossip.**
+  - **Retransmission limit.** Each update is sent at most `⌈RetransmitMultiplier · ln(n)⌉` times, and at least once. `n` is the number of non-Dead members, including self. The paper leaves λ and the log base open; the base only rescales λ.
+  - **Message size.** Each message carries at most `MaxUpdatesPerMessage` updates. A byte limit follows once serialization exists.
+  - **Order.** The least-transmitted updates go first, with ties broken by member ID.
+  - **Buffer.** It holds at most one update per member. A newer update replaces the older one and resets its count. Dead updates are disseminated like any other.
+  - **Refutation.** Suspect about self at the current incarnation or higher sets the incarnation to that value + 1 and enqueues Alive. Alive about self and stale suspicions are ignored. Dead about self is ignored until join exists; the paper requires a rejoin.
 - **Ping from an unknown sender.** It is answered, but the sender is not added to the view. Members are added only through updates; the paper learns about members only through join announcements and dissemination.
 - **Coordinator.** Rejoins contact the first member of the configured node list. If that member is crashed, the first live one is used instead (our addition; the paper uses a single static coordinator).
 
@@ -103,8 +113,7 @@ Document and justify each of these before or during implementation:
 - default period and timeout
 - indirect probe count
 - suspicion timeout formula
-- λ and retransmission limits
-- maximum message size and updates per message
+- values for `RetransmitMultiplier` and `MaxUpdatesPerMessage`; maximum message size in bytes
 - serialization format
 - leave representation
 - membership scope across AZs

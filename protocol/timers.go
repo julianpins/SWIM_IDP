@@ -10,7 +10,8 @@ const (
 )
 
 type Timer struct {
-	Kind   TimerKind
-	Probe  uint64
-	Member NodeID
+	Kind        TimerKind
+	Probe       uint64
+	Member      NodeID
+	Incarnation uint64
 }
