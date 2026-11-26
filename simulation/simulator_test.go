@@ -159,3 +159,28 @@ func TestIndirectProbeAroundBrokenLink(t *testing.T) {
 		t.Error("no Ack about c forwarded to a by b")
 	}
 }
+
+// c crashes: a and b suspect and then declare it Dead; nobody else is suspected.
+func TestCrashedNodeDeclaredDead(t *testing.T) {
+	s := testSim(t, 1)
+	if err := s.Schedule(2*time.Second, Fault{Kind: Crash, Node: "c"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Run(15 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	for _, sn := range s.nodes {
+		if sn.id == "c" {
+			continue
+		}
+		for _, m := range sn.node.Members() {
+			want := protocol.Alive
+			if m.ID == "c" {
+				want = protocol.Dead
+			}
+			if m.State != want {
+				t.Errorf("%s sees %s as %d, want %d", sn.id, m.ID, m.State, want)
+			}
+		}
+	}
+}
